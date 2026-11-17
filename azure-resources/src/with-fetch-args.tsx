@@ -1,7 +1,6 @@
 import { Action, ActionPanel, Icon, List } from "@raycast/api";
 import { usePromise } from "@raycast/utils";
-import { FetchArgs } from "./lib/azure/azure";
-import { GetFetchArgs } from "./lib/azure/get-fetch-args";
+import { FetchArgs, GetFetchArgs } from "./lib/azure/get-fetch-args";
 import { SwitchSubscriptionAction } from "./subscription-list";
 
 export type PropsWithFetchArgs = {

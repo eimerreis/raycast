@@ -65,15 +65,15 @@ export const AzAccountShow = (subscriptionId?: string) =>
   az<AzSubscription>(["account", "show", ...(subscriptionId ? ["--subscription", subscriptionId] : [])]);
 
 /**
- * Requests an ARM access token for the given subscription.
+ * Requests an access token for a resource (ARM by default) in the tenant of the given subscription.
  * Scoping by subscription makes the CLI pick the right tenant.
  */
-export const AzGetAccessToken = async (subscriptionId: string): Promise<AccessToken> => {
+export const AzGetAccessToken = async (subscriptionId: string, resource = armResource): Promise<AccessToken> => {
   const response = await az<AzAccessTokenResponse>([
     "account",
     "get-access-token",
     "--resource",
-    armResource,
+    resource,
     "--subscription",
     subscriptionId,
   ]);

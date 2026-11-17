@@ -1,5 +1,12 @@
 # Azure Resources Changelog
 
+## [Resource Actions, Logs and Dead Letters] - {PR_MERGE_DATE}
+
+- New commands: Search Resources, Recent Resources, App Insights Logs, Service Bus Dead Letters, Activity Log
+- Actions per resource type (App Service, Function App, VM, Container App, AKS, Storage, Key Vault, SQL, Cosmos DB, Redis, Service Bus, App Insights, Front Door/CDN)
+- Copy App Insights operation traces as JSON for AI agents
+- Resource lists use Azure Resource Graph and show status tags
+
 ## [Reliable subscription switching] - {PR_MERGE_DATE}
 
 - Switching subscriptions now applies the selected subscription and reports failures
