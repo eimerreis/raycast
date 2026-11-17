@@ -1,5 +1,5 @@
-import { GenericResourceExpanded, ResourceManagementClient } from "@azure/arm-resources";
-import { TokenCredential } from "@azure/identity";
+import { GenericResourceExpanded, ResourceGroup, ResourceManagementClient } from "@azure/arm-resources";
+import type { TokenCredential } from "@azure/identity";
 
 export type FetchArgs = {
   credential: TokenCredential;
@@ -7,52 +7,31 @@ export type FetchArgs = {
   subscriptionName: string;
 };
 
-const apiVersion = "2024-04-01";
+const CreateResourceManagementClient = (args: FetchArgs) =>
+  new ResourceManagementClient(args.credential, args.subscriptionId);
 
-const CreateResourceManagementClient = (args: FetchArgs) => {
-  const client = new ResourceManagementClient(args.credential, args.subscriptionId);
-  return client;
-};
-
-export const GetResourceGroups = (args: FetchArgs) => {
-  const client = CreateResourceManagementClient(args);
-  return client.resourceGroups.list();
-};
-
-export const GetResourceGroupByName = async (name: string, args: FetchArgs) => {
-  const client = CreateResourceManagementClient(args);
-  return client.resourceGroups.get(name);
-};
-
-export const GetResourcesInResourceGroup = async (name: string, args: FetchArgs) => {
-  const client = CreateResourceManagementClient(args);
-  const result: GenericResourceExpanded[] = [];
-  for await (const resource of client.resources.listByResourceGroup(name)) {
-    result.push(resource);
+const Collect = async <T>(items: AsyncIterable<T>) => {
+  const result: T[] = [];
+  for await (const item of items) {
+    result.push(item);
   }
   return result;
 };
 
-export const FetchResources = (startsWith: string, args: FetchArgs) => {
-  const filter = `$filter=substringof('${startsWith}', name)`;
+export const GetResourceGroups = (args: FetchArgs): Promise<ResourceGroup[]> =>
+  Collect(CreateResourceManagementClient(args).resourceGroups.list());
 
-  const client = CreateResourceManagementClient(args);
-  return client.resources.list({ filter });
-};
+export const GetResourcesInResourceGroup = (name: string, args: FetchArgs): Promise<GenericResourceExpanded[]> =>
+  Collect(CreateResourceManagementClient(args).resources.listByResourceGroup(name));
 
-export const GetResourceById = async (id: string, args: FetchArgs) => {
-  const client = CreateResourceManagementClient(args);
-  return client.resources.getById(id, apiVersion);
-};
+/** OData string literals escape a single quote by doubling it. */
+const ODataString = (value: string) => `'${value.replaceAll("'", "''")}'`;
 
 export const GetResourceByName = async (name: string, args: FetchArgs) => {
   const client = CreateResourceManagementClient(args);
-
-  for await (const resource of client.resources.list({ filter: `name eq '${name}'` })) {
+  for await (const resource of client.resources.list({ filter: `name eq ${ODataString(name)}` })) {
     return resource;
   }
 };
 
-export const GenerateAzurePortalUrl = (resourceId: string) => {
-  return `https://portal.azure.com/#resource${resourceId}`;
-};
+export const GetResourceUrl = (resourceId: string) => `https://portal.azure.com/#resource${resourceId}`;

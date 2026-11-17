@@ -1,22 +1,44 @@
-import { List } from "@raycast/api";
+import { Action, ActionPanel, Icon, LaunchType, List, launchCommand } from "@raycast/api";
+import { usePromise } from "@raycast/utils";
 import { FetchArgs } from "./lib/azure/azure";
-import { useAzureCliCredential } from "./lib/hooks/azure/use-azure-cli-credential";
-import { useCurrentAzureSubscription } from "./lib/hooks/azure/use-current-azure-subscription";
-import { azAccountShow } from "./lib/azure/azure-cli";
+import { GetFetchArgs } from "./lib/azure/get-fetch-args";
 
 export type PropsWithFetchArgs = { fetchArgs: FetchArgs };
-export const withFetchArgs =
-  <P extends object & PropsWithFetchArgs>(
-    Component: React.ComponentType<P>,
-  ): React.ComponentType<Omit<P, "fetchArgs">> =>
-  (props: Omit<P, "fetchArgs">) => {
-    const { credential, isLoading: tokenLoading } = useAzureCliCredential();
-    const { subscriptionId, isLoading: subscriptionLoading } = useCurrentAzureSubscription();
-    const { name } = azAccountShow();
 
-    if (tokenLoading || subscriptionLoading || !credential) {
-      return <List isLoading={true} searchBarPlaceholder="Loading..." />;
+/**
+ * Resolves the active subscription and an Azure CLI backed credential before rendering the command.
+ * Pushed child views should receive `fetchArgs` as a prop instead of being wrapped again.
+ */
+export const withFetchArgs =
+  <P extends PropsWithFetchArgs>(Component: React.ComponentType<P>): React.ComponentType<Omit<P, "fetchArgs">> =>
+  (props: Omit<P, "fetchArgs">) => {
+    const { data: fetchArgs, error, isLoading, revalidate } = usePromise(GetFetchArgs, [], { onError: () => {} });
+
+    if (error) {
+      return (
+        <List>
+          <List.EmptyView
+            icon={Icon.Warning}
+            title="Could not connect to Azure"
+            description={error.message}
+            actions={
+              <ActionPanel>
+                <Action title="Retry" icon={Icon.ArrowClockwise} onAction={revalidate} />
+                <Action
+                  title="Switch Azure Subscription"
+                  icon={Icon.Switch}
+                  onAction={() => launchCommand({ name: "switch-azure-subscription", type: LaunchType.UserInitiated })}
+                />
+              </ActionPanel>
+            }
+          />
+        </List>
+      );
     }
 
-    return <Component {...({ ...props, fetchArgs: { credential, subscriptionId, subscriptionName: name } } as P)} />;
+    if (isLoading || !fetchArgs) {
+      return <List isLoading searchBarPlaceholder="Loading..." />;
+    }
+
+    return <Component {...({ ...props, fetchArgs } as P)} />;
   };

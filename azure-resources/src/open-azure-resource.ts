@@ -1,31 +1,28 @@
 import { LaunchProps, open, showToast, Toast } from "@raycast/api";
-import { GetResourceByName } from "./lib/azure/azure";
+import { showFailureToast } from "@raycast/utils";
+import { GetResourceByName, GetResourceUrl } from "./lib/azure/azure";
 import { GetFetchArgs } from "./lib/azure/get-fetch-args";
-import { GetResourceUrl } from "./lib/azure/get-resource-url";
-import { az } from "./lib/azure/azure-cli";
 
-type Arguments = {
-  resourceName: string;
-};
+type Props = LaunchProps<{ arguments: Arguments.OpenAzureResource }>;
 
-type Props = LaunchProps<{ arguments: Arguments }>;
+export default async function OpenAzureResource({ arguments: { resourceName } }: Props) {
+  const name = resourceName.trim();
+  const toast = await showToast({ title: `Searching for ${name}...`, style: Toast.Style.Animated });
 
-const OpenAzureResource = async ({ arguments: { resourceName } }: Props) => {
-  await showToast({ title: `Searching for resource ${resourceName}...`, style: Toast.Style.Animated });
-  const fetchArgs = GetFetchArgs();
-  const resource = await GetResourceByName(resourceName, fetchArgs);
+  try {
+    const fetchArgs = await GetFetchArgs();
+    const resource = await GetResourceByName(name, fetchArgs);
 
-  if (!resource) {
-    const subscriptionName = az`account show --query name`.replace(/"/g, "");
+    if (!resource?.id) {
+      toast.style = Toast.Style.Failure;
+      toast.title = `Resource ${name} not found`;
+      toast.message = `Subscription: ${fetchArgs.subscriptionName}`;
+      return;
+    }
 
-    return await showToast({
-      title: `Resource ${resourceName} not found in the subscription`,
-      message: subscriptionName,
-      style: Toast.Style.Failure,
-    });
+    await toast.hide();
+    await open(GetResourceUrl(resource.id));
+  } catch (error) {
+    await showFailureToast(error, { title: `Could not open ${name}` });
   }
-
-  return open(GetResourceUrl(resource));
-};
-
-export default OpenAzureResource;
+}

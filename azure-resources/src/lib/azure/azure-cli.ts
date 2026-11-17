@@ -1,49 +1,83 @@
-import { spawnSync } from "node:child_process";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import type { AccessToken } from "@azure/identity";
 import { GetPreferences } from "../preferences";
 
-const { azCliPath } = GetPreferences();
+const execFileAsync = promisify(execFile);
 
-export const az = (strings: TemplateStringsArray, ...values: unknown[]): string => {
-  // Combine the strings and values into a single command string
-  const command = strings.reduce((acc, str, i) => acc + str + (values[i] || ""), "");
+const armResource = "https://management.azure.com";
 
-  // Split the command into arguments
-  const args = command.trim().split(/\s+/);
+export class AzureCliError extends Error {
+  name = "AzureCliError";
+}
 
-  const { stdout, stderr } = spawnSync(azCliPath, args);
-
-  // Check for errors
-  if (stderr?.length > 0) {
-    throw new Error(`Error executing command: ${stderr.toString()}`);
-  }
-
-  // Return the command output
-  return stdout.toString();
-};
-
-export const azAccountGetCurrentSubscription = () => {
-  return az`account show --query id`.trim().replaceAll('"', "");
-};
-
-export interface AzAccountShowResult {
-  environmentName: string;
-  homeTenantId: string;
+export interface AzSubscription {
   id: string;
-  isDefault: boolean;
   name: string;
+  isDefault: boolean;
   state: string;
-  tenantDefaultDomain: string;
-  tenantDisplayName: string;
   tenantId: string;
+  tenantDisplayName?: string;
   user: {
     name: string;
     type: string;
   };
 }
 
-export const azAccountShow = () => {
-  return JSON.parse(az`account show`) as AzAccountShowResult;
+interface AzAccessTokenResponse {
+  accessToken: string;
+  expiresOn: string;
+  expires_on?: number;
+}
+
+/**
+ * Runs an Azure CLI command and parses its JSON output.
+ * Arguments are passed as an array (no shell), so values never need quoting or escaping.
+ * Failure is determined by the exit code only: az writes warnings (e.g. available updates) to stderr.
+ */
+export const az = async <T>(args: string[]): Promise<T> => {
+  const { azCliPath } = GetPreferences();
+  try {
+    const { stdout } = await execFileAsync(azCliPath, [...args, "--output", "json"], {
+      maxBuffer: 50 * 1024 * 1024,
+    });
+    return JSON.parse(stdout) as T;
+  } catch (error) {
+    throw ToAzureCliError(error, azCliPath);
+  }
 };
 
-export const azAccountGetAccessToken = () =>
-  az`account get-access-token --resource-type arm --resource https://management.azure.com`;
+const ToAzureCliError = (error: unknown, azCliPath: string) => {
+  const { code, stderr } = error as { code?: string | number; stderr?: string };
+  if (code === "ENOENT") {
+    return new AzureCliError(`Azure CLI not found at "${azCliPath}". Check the extension preferences.`);
+  }
+  if (stderr && /az login/i.test(stderr)) {
+    return new AzureCliError("Not logged in to the Azure CLI. Run `az login` in a terminal.");
+  }
+  const message = stderr?.trim() || (error instanceof Error ? error.message : String(error));
+  return new AzureCliError(message.replace(/^ERROR:\s*/, ""));
+};
+
+export const AzAccountList = () => az<AzSubscription[]>(["account", "list"]);
+
+export const AzAccountShow = (subscriptionId?: string) =>
+  az<AzSubscription>(["account", "show", ...(subscriptionId ? ["--subscription", subscriptionId] : [])]);
+
+/**
+ * Requests an ARM access token for the given subscription.
+ * Scoping by subscription makes the CLI pick the right tenant.
+ */
+export const AzGetAccessToken = async (subscriptionId: string): Promise<AccessToken> => {
+  const response = await az<AzAccessTokenResponse>([
+    "account",
+    "get-access-token",
+    "--resource",
+    armResource,
+    "--subscription",
+    subscriptionId,
+  ]);
+  // `expires_on` is a unix timestamp in seconds; older CLI versions only return the local `expiresOn` string.
+  const expiresOnTimestamp = response.expires_on ? response.expires_on * 1000 : Date.parse(response.expiresOn);
+  return { token: response.accessToken, expiresOnTimestamp, tokenType: "Bearer" };
+};
