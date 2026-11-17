@@ -1,0 +1,64 @@
+import { ActionPanel, Action, List, showToast, Toast, Image, closeMainWindow, showHUD, popToRoot } from "@raycast/api";
+import { usePlaylists } from "./usePlaylists";
+import { AddTrackToList } from "./spotify/add-track-to-playlist";
+import { useCurrentTrack } from "./useCurrentTrack";
+import { withSpotifyClient } from "./spotify/api";
+
+function Command() {
+  const { playlists, isLoading: playlistsLoading } = usePlaylists();
+  const { track, isLoading: trackLoading } = useCurrentTrack();
+
+  return (
+    <List isLoading={playlistsLoading || trackLoading} searchBarPlaceholder="Search playlists...">
+      <List.Section title="Playlists" subtitle={`Current Track is: "${track?.item && track.item.name}"`}>
+        {track && playlists.map((item) => <SearchListItem key={item.id} searchResult={item} currentTrack={track} />)}
+      </List.Section>
+    </List>
+  );
+}
+
+export default withSpotifyClient(Command);
+
+function SearchListItem({
+  searchResult,
+  currentTrack,
+}: {
+  searchResult: SpotifyApi.PlaylistObjectSimplified;
+  currentTrack: SpotifyApi.CurrentlyPlayingResponse;
+}) {
+  const { length, [length - 1]: lastImage } = searchResult.images;
+
+  const onAdd = async () => {
+    if (currentTrack.item) {
+      const toast = await showToast({
+        style: Toast.Style.Animated,
+        title: `Adding track...`,
+        message: `${currentTrack.item.name} to ${searchResult.name}...`,
+      });
+      await AddTrackToList(searchResult.id, currentTrack.item.uri);
+      (toast.title = `Successfully added`), (toast.message = `${currentTrack.item.name} to ${searchResult.name}`);
+      await showHUD(`✅ Successfully added ${currentTrack.item.name} to ${searchResult.name}`);
+      popToRoot({ clearSearchBar: true });
+      await closeMainWindow({ clearRootSearch: true });
+    }
+  };
+
+  return (
+    <List.Item
+      icon={{
+        source: lastImage.url,
+        mask: Image.Mask.Circle,
+      }}
+      title={searchResult.name}
+      subtitle={searchResult.description!}
+      accessoryTitle={searchResult.owner.display_name}
+      actions={
+        <ActionPanel>
+          <ActionPanel.Section>
+            <Action title="Add to playlist" onAction={onAdd} />
+          </ActionPanel.Section>
+        </ActionPanel>
+      }
+    />
+  );
+}
