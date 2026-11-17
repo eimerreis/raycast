@@ -14,7 +14,31 @@ export const timeRanges: { value: TimeRange; title: string }[] = [
   { value: "P7D", title: "Last 7 Days" },
 ];
 
-export type TelemetryScope = "problems" | "all";
+export type TelemetryScope = "problems" | "exceptions" | "all";
+
+export const telemetryScopes: { value: TelemetryScope; title: string; section: string; emptyLabel: string }[] = [
+  {
+    value: "problems",
+    title: "Problems",
+    section: "Problems (exceptions, failures, warnings)",
+    emptyLabel: "problems",
+  },
+  { value: "exceptions", title: "Exceptions", section: "Exceptions Only", emptyLabel: "exceptions" },
+  { value: "all", title: "All", section: "All Telemetry", emptyLabel: "telemetry" },
+];
+
+/** Per telemetry table: the summary/message columns and the filter that makes a row a "problem". */
+const telemetryTables = [
+  {
+    table: "exceptions",
+    extend: "summary = coalesce(outerMessage, problemId, type), message = coalesce(innermostMessage, outerMessage)",
+    problem: "",
+  },
+  { table: "requests", extend: "summary = strcat(resultCode, ' ', name), message = url", problem: "success == false" },
+  { table: "dependencies", extend: "summary = strcat(type, ' ', name), message = data", problem: "success == false" },
+  { table: "traces", extend: "summary = message", problem: "severityLevel >= 2" },
+  { table: "customEvents", extend: "summary = name, message = ''", problem: undefined },
+];
 
 export type TelemetryItem = {
   timestamp: string;
@@ -69,15 +93,21 @@ export const GetTelemetry = async (
   timespan: TimeRange,
   filter: TelemetryFilter,
 ): Promise<TelemetryItem[]> => {
-  const problemsOnly = filter.scope === "problems";
+  const tables = telemetryTables
+    .filter(({ table, problem }) =>
+      filter.scope === "exceptions" ? table === "exceptions" : filter.scope === "all" || problem !== undefined,
+    )
+    .map(({ table, extend, problem }) =>
+      [`(${table}`, filter.scope === "problems" && problem ? `| where ${problem}` : "", `| extend ${extend})`]
+        .filter(Boolean)
+        .join(" "),
+    );
   const query = [
-    "union isfuzzy=true",
-    "  (exceptions | extend summary = coalesce(outerMessage, problemId, type), message = coalesce(innermostMessage, outerMessage)),",
-    `  (requests ${problemsOnly ? "| where success == false" : ""} | extend summary = strcat(resultCode, ' ', name), message = url),`,
-    `  (dependencies ${problemsOnly ? "| where success == false" : ""} | extend summary = strcat(type, ' ', name), message = data),`,
-    `  (traces ${problemsOnly ? "| where severityLevel >= 2" : ""} | extend summary = message),`,
-    `  (customEvents ${problemsOnly ? "| where false" : ""} | extend summary = name, message = '')`,
+    `union isfuzzy=true ${tables.join(",\n  ")}`,
     filter.operationName ? `| where operation_Name =~ ${Kql(filter.operationName)}` : "",
+    // Columns that only some tables have, so the projection also works for a single table.
+    "| extend success = column_ifexists('success', bool(null)), resultCode = column_ifexists('resultCode', ''),",
+    "  duration = column_ifexists('duration', real(null)), severityLevel = column_ifexists('severityLevel', int(null))",
     "| order by timestamp desc",
     "| take 300",
     "| project timestamp, itemType, summary, message, severityLevel, success, resultCode, duration, operation_Id, operation_Name, cloud_RoleName, itemId",

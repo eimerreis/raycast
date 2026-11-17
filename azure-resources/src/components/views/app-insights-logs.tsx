@@ -7,6 +7,7 @@ import {
   GetTelemetry,
   TelemetryItem,
   TelemetryScope,
+  telemetryScopes,
   TimeRange,
   timeRanges,
 } from "../../lib/azure/app-insights";
@@ -76,20 +77,17 @@ export const AppInsightsLogs = ({ app, fetchArgs, operationName }: Props) => {
       searchBarPlaceholder="Filter by message, operation, role..."
       searchBarAccessory={
         <List.Dropdown tooltip="Telemetry and Time Range" value={selection} onChange={setSelection}>
-          <List.Dropdown.Section title="Problems (exceptions, failures, warnings)">
-            {timeRanges.map((item) => (
-              <List.Dropdown.Item
-                key={`p-${item.value}`}
-                title={`Problems · ${item.title}`}
-                value={`problems:${item.value}`}
-              />
-            ))}
-          </List.Dropdown.Section>
-          <List.Dropdown.Section title="All Telemetry">
-            {timeRanges.map((item) => (
-              <List.Dropdown.Item key={`a-${item.value}`} title={`All · ${item.title}`} value={`all:${item.value}`} />
-            ))}
-          </List.Dropdown.Section>
+          {telemetryScopes.map((telemetryScope) => (
+            <List.Dropdown.Section key={telemetryScope.value} title={telemetryScope.section}>
+              {timeRanges.map((item) => (
+                <List.Dropdown.Item
+                  key={`${telemetryScope.value}-${item.value}`}
+                  title={`${telemetryScope.title} · ${item.title}`}
+                  value={`${telemetryScope.value}:${item.value}`}
+                />
+              ))}
+            </List.Dropdown.Section>
+          ))}
         </List.Dropdown>
       }
     >
@@ -100,7 +98,7 @@ export const AppInsightsLogs = ({ app, fetchArgs, operationName }: Props) => {
       ) : (
         <List.EmptyView
           icon={{ source: Icon.CheckCircle, tintColor: Color.Green }}
-          title={`No ${scope === "problems" ? "problems" : "telemetry"} in the ${rangeTitle.toLowerCase()}`}
+          title={`No ${telemetryScopes.find((item) => item.value === scope)?.emptyLabel ?? "telemetry"} in the ${rangeTitle.toLowerCase()}`}
         />
       )}
       {data?.map((item) => (
