@@ -34,14 +34,13 @@
     "@raycast/utils": "^1.18.1",
     "@types/spotify-web-api-node": "^5.0.7",
     "axios": "^1.8.1",
-    "fuse.js": "^6.6.2",
     "node-fetch": "^3.3.2",
     "run-applescript": "^6.0.0",
     "spotify-web-api-node": "^5.0.2"
   },
   "devDependencies": {
     "@types/node": "~16.10.0",
-    "@types/react": "^17.0.28",
+    "@types/react": "^18.3.31",
     "@typescript-eslint/eslint-plugin": "^5.0.0",
     "@typescript-eslint/parser": "^5.0.0",
     "eslint": "^7.32.0",
