@@ -7,7 +7,7 @@ import { GetPreferences } from "./lib/preferences";
 
 type Props = {
   groupName: string;
-} & PropsWithFetchArgs;
+} & Pick<PropsWithFetchArgs, "fetchArgs">;
 
 export const ResourceGroupDetail: React.FC<Props> = ({ groupName, fetchArgs }) => {
   const { showResourceDetailsInList } = GetPreferences();

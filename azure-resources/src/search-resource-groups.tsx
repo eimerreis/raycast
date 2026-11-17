@@ -4,8 +4,9 @@ import { ResourceGroup } from "@azure/arm-resources";
 import { GetResourceGroups, GetResourceUrl } from "./lib/azure/azure";
 import { PropsWithFetchArgs, withFetchArgs } from "./with-fetch-args";
 import { ResourceGroupDetail } from "./resource-group-detail";
+import { SwitchSubscriptionAction } from "./subscription-list";
 
-const ListResourceGroups: React.FC<PropsWithFetchArgs> = ({ fetchArgs }) => {
+const ListResourceGroups: React.FC<PropsWithFetchArgs> = ({ fetchArgs, reloadFetchArgs }) => {
   // The subscription id is a hook argument so cached results never leak across subscriptions.
   const { data: groups, isLoading } = useCachedPromise(
     (subscriptionId: string) => GetResourceGroups({ ...fetchArgs, subscriptionId }),
@@ -20,6 +21,11 @@ const ListResourceGroups: React.FC<PropsWithFetchArgs> = ({ fetchArgs }) => {
       navigationTitle={`Subscription: ${fetchArgs.subscriptionName}`}
       isLoading={isLoading}
       searchBarPlaceholder="Search Resource Groups..."
+      actions={
+        <ActionPanel>
+          <SwitchSubscriptionAction onSwitched={reloadFetchArgs} />
+        </ActionPanel>
+      }
     >
       {sortedData.map((group) => (
         <List.Item
@@ -41,6 +47,9 @@ const ListResourceGroups: React.FC<PropsWithFetchArgs> = ({ fetchArgs }) => {
                   url={GetResourceUrl(group.id)}
                 />
               )}
+              <ActionPanel.Section>
+                <SwitchSubscriptionAction onSwitched={reloadFetchArgs} />
+              </ActionPanel.Section>
             </ActionPanel>
           }
         />
