@@ -1,2 +1,1 @@
-export class RefreshTokenExpiredError extends Error {
-}
+export class RefreshTokenExpiredError extends Error {}
